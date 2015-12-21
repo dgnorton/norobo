@@ -25,6 +25,8 @@ const (
 	CallerIDModesCmd     = "AT+VCID=?"
 	CallerIDCmd          = "AT+VCID?"
 	SetCallerIDCmd       = "AT+VCID=%s"
+	AnswerCmd            = "ATA"
+	HangupCmd            = "ATH0"
 )
 
 func FmtCmd(c Cmd, a ...interface{}) Cmd {
@@ -52,13 +54,22 @@ type Response struct {
 	Err  error
 }
 
+type CallHandler interface {
+	Handle(c *Call)
+}
+
 type Modem struct {
-	tx      chan *Request
-	stop    chan struct{}
-	stopped sync.WaitGroup
-	cfg     *config
-	port    *serial.Port
-	portCfg *serial.Config
+	tx           chan *Request
+	stop         chan struct{}
+	stopped      sync.WaitGroup
+	cfg          *config
+	port         *serial.Port
+	portCfg      *serial.Config
+	callerIDMode CallerIDMode
+	mu           sync.RWMutex
+	cache        map[string]interface{}
+	cacheEnabled bool
+	callHandler  CallHandler
 }
 
 func Open(conn string) (*Modem, error) {
@@ -79,11 +90,14 @@ func Open(conn string) (*Modem, error) {
 	}
 
 	m := &Modem{
-		tx:      make(chan *Request),
-		stop:    make(chan struct{}),
-		cfg:     cfg,
-		portCfg: portCfg,
-		port:    port,
+		tx:           make(chan *Request),
+		stop:         make(chan struct{}),
+		cfg:          cfg,
+		portCfg:      portCfg,
+		port:         port,
+		callerIDMode: CallerIDOff,
+		cache:        make(map[string]interface{}),
+		cacheEnabled: true,
 	}
 
 	m.stopped.Add(1)
@@ -97,6 +111,38 @@ func (m *Modem) Close() {
 	m.stopped.Wait()
 }
 
+func (m *Modem) Answer() error {
+	rx := make(chan *Response)
+	m.tx <- &Request{Cmd: AnswerCmd, Response: rx}
+	resp := <-rx
+	return resp.Err
+}
+
+func (m *Modem) Hangup() error {
+	rx := make(chan *Response)
+	m.tx <- &Request{Cmd: HangupCmd, Response: rx}
+	resp := <-rx
+	return resp.Err
+}
+
+func (m *Modem) EnableSoftwareCache(v bool) {
+	m.cacheEnabled = v
+}
+
+func (m *Modem) SetCallHandler(ch CallHandler) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.callHandler = ch
+}
+
+func (m *Modem) handleCall(c *Call) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.callHandler != nil {
+		go m.callHandler.Handle(c)
+	}
+}
+
 func (m *Modem) Reset() error {
 	rx := make(chan *Response)
 	m.tx <- &Request{Cmd: ResetCmd, Response: rx}
@@ -105,6 +151,9 @@ func (m *Modem) Reset() error {
 }
 
 func (m *Modem) Info() ([]string, error) {
+	if v, ok := m.readCache("info"); ok {
+		return v.([]string), nil
+	}
 	infos := []string{}
 	for n := 0; n < 10; n++ {
 		req := NewRequestFmt(InfoCmd, n)
@@ -119,6 +168,7 @@ func (m *Modem) Info() ([]string, error) {
 		}
 		infos = append(infos, resp.Data)
 	}
+	m.writeCache("info", infos)
 	return infos, nil
 }
 
@@ -152,6 +202,9 @@ func ParseFaxClass(s string) (FaxClass, error) {
 
 // FaxClasses returns the supported fax service classes.
 func (m *Modem) FaxClasses() ([]FaxClass, error) {
+	if v, ok := m.readCache("faxClasses"); ok {
+		return v.([]FaxClass), nil
+	}
 	req := NewRequest(FaxClassesCmd)
 	m.tx <- req
 	resp := <-req.Response
@@ -167,25 +220,40 @@ func (m *Modem) FaxClasses() ([]FaxClass, error) {
 		}
 		fcs = append(fcs, fc)
 	}
+	m.writeCache("faxClasses", fcs)
 	return fcs, nil
 }
 
 // FaxClass returns the current fax class.
 func (m *Modem) FaxClass() (FaxClass, error) {
+	if v, ok := m.readCache("faxClass"); ok {
+		return v.(FaxClass), nil
+	}
 	req := NewRequest(FaxClassCmd)
 	m.tx <- req
 	resp := <-req.Response
 	if resp.Err != nil {
 		return FaxClass0, resp.Err
 	}
-	return ParseFaxClass(resp.Data)
+	class, err := ParseFaxClass(resp.Data)
+	if err != nil {
+		return FaxClass0, err
+	}
+	m.writeCache("faxClass", class)
+	return class, nil
 }
 
 // SetFaxClass sets the current fax class.
 func (m *Modem) SetFaxClass(fc FaxClass) error {
+	if v, ok := m.readCache("faxClass"); ok && v.(FaxClass) == fc {
+		return nil
+	}
 	req := NewRequestFmt(SetFaxClassCmd, fc)
 	m.tx <- req
 	resp := <-req.Response
+	if resp.Err == nil {
+		m.writeCache("faxClass", fc)
+	}
 	return resp.Err
 }
 
@@ -254,7 +322,10 @@ func (m *Modem) CallerIDMode() (CallerIDMode, error) {
 	if resp.Err != nil {
 		return CallerIDOff, resp.Err
 	}
-	return ParseCallerIDMode(resp.Data)
+	var err error
+	m.callerIDMode, err = ParseCallerIDMode(resp.Data)
+
+	return m.callerIDMode, err
 }
 
 // SetCallerIDMode sets the caller ID mode.
@@ -262,7 +333,11 @@ func (m *Modem) SetCallerIDMode(mode CallerIDMode) error {
 	req := NewRequestFmt(SetCallerIDCmd, mode)
 	m.tx <- req
 	resp := <-req.Response
-	return resp.Err
+	if resp.Err != nil {
+		return resp.Err
+	}
+	m.callerIDMode = mode
+	return nil
 }
 
 // SetVolume sets the modem's speaker volume, if it has one.
@@ -298,6 +373,9 @@ func (m *Modem) run() {
 		}
 	}
 
+	var call *Call
+	var callSent *Call
+
 	for {
 		select {
 		case <-m.stop:
@@ -329,9 +407,57 @@ func (m *Modem) run() {
 
 		// Read modem initiated events (RINGS, etc.).
 		if r := m.readResponse(); r != nil {
-			//println(r.Data)
+			if r.Err != nil {
+				// TODO: handle error
+				continue
+			}
+			if r.Data == "RING" {
+				if call == nil && callSent == nil {
+					call = &Call{Time: time.Now()}
+					if m.callerIDMode == CallerIDOff {
+						// Not waiting on caller ID so send the call.
+						m.handleCall(call)
+						callSent = call
+						call = nil
+						continue
+					}
+				}
+			} else if strings.Contains(r.Data, "NAME = ") {
+				if call == nil {
+					call = &Call{Time: time.Now()}
+				}
+				a := strings.Split(r.Data, "=")
+				if len(a) == 2 {
+					call.Name = strings.TrimSpace(a[1])
+				}
+			} else if strings.Contains(r.Data, "NUMBER = ") {
+				a := strings.Split(r.Data, "=")
+				if len(a) == 2 {
+					call.Number = strings.TrimSpace(a[1])
+					m.handleCall(call)
+					callSent = call
+					call = nil
+				}
+			}
+		} else if r == nil {
+			if call != nil && time.Now().Sub(call.Time) > (20*time.Second) {
+				// Call was answered, caller hung up early, etc.
+				m.handleCall(call)
+				call = nil
+				callSent = nil
+			} else if callSent != nil && time.Now().Sub(callSent.Time) > (20*time.Second) {
+				call = nil
+				callSent = nil
+			}
+			continue
 		}
 	}
+}
+
+type Call struct {
+	Time   time.Time
+	Name   string
+	Number string
 }
 
 func (m *Modem) readResponse() *Response {
@@ -356,6 +482,25 @@ func (m *Modem) readResponse() *Response {
 			buf = append(buf, b[0])
 		}
 	}
+}
+
+func (m *Modem) readCache(key string) (interface{}, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if !m.cacheEnabled {
+		return nil, false
+	}
+	v, ok := m.cache[key]
+	return v, ok
+}
+
+func (m *Modem) writeCache(key string, v interface{}) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.cacheEnabled {
+		return
+	}
+	m.cache[key] = v
 }
 
 func writeRead(p *serial.Port, s string) (string, error) {

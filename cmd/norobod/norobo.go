@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/dgnorton/norobo/hayes"
 )
@@ -15,6 +16,9 @@ func main() {
 
 	modem, err := hayes.Open(connstr)
 	check(err)
+
+	modem.SetCallHandler(&callHandler{modem: modem})
+	modem.EnableSoftwareCache(false)
 
 	check(modem.Reset())
 
@@ -36,7 +40,7 @@ func main() {
 	check(err)
 	fmt.Printf("fax class: %s\n", fc)
 
-	check(modem.SetFaxClass(hayes.FaxClass1))
+	check(modem.SetFaxClass(hayes.FaxClass2))
 
 	fc, err = modem.FaxClass()
 	check(err)
@@ -59,7 +63,26 @@ func main() {
 	check(err)
 	fmt.Printf("caller ID mode: %s\n", cidMode)
 
+	time.Sleep(60 * time.Second)
+
 	modem.Close()
+}
+
+type callHandler struct {
+	modem *hayes.Modem
+}
+
+func (h *callHandler) Handle(c *hayes.Call) {
+	fmt.Printf("%s [%s] %s\n", c.Time, c.Name, c.Number)
+	if c.Name == "Bill Gates" {
+		println("spam call")
+		if err := h.modem.Answer(); err != nil {
+			println(err)
+		}
+		if err := h.modem.Hangup(); err != nil {
+			println(err)
+		}
+	}
 }
 
 func check(err error) {
