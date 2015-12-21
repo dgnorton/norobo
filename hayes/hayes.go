@@ -81,7 +81,7 @@ func Open(conn string) (*Modem, error) {
 	portCfg := &serial.Config{
 		Name:        cfg.port,
 		Baud:        cfg.baud,
-		ReadTimeout: 100 * time.Millisecond,
+		ReadTimeout: 50 * time.Millisecond,
 	}
 
 	port, err := serial.OpenPort(portCfg)

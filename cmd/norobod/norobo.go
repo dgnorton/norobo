@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/dgnorton/norobo/hayes"
@@ -68,21 +69,97 @@ func main() {
 	modem.Close()
 }
 
+type Call struct {
+	*hayes.Call
+	Spam bool
+}
+
 type callHandler struct {
-	modem *hayes.Modem
+	modem   *hayes.Modem
+	filters Filters
+}
+
+func newCallHandler(m *hayes.Modem, f Filters) *callHandler {
+	h := &callHandler{modem: m, filters: f}
+	return h
 }
 
 func (h *callHandler) Handle(c *hayes.Call) {
-	fmt.Printf("%s [%s] %s\n", c.Time, c.Name, c.Number)
-	if c.Name == "Bill Gates" {
-		println("spam call")
-		if err := h.modem.Answer(); err != nil {
-			println(err)
-		}
-		if err := h.modem.Hangup(); err != nil {
-			println(err)
+	call := &Call{Call: c}
+	filters := Filters{
+		&LocalBlackList{
+			Names: []string{"Bill Gates"},
+		},
+	}
+
+	if result := filters.FirstSpam(call); result != nil {
+		fmt.Printf("%s %s %s [blocked]\n", c.Time, c.Name, c.Number)
+		return
+	}
+
+	fmt.Printf("%s %s %s\n", c.Time, c.Name, c.Number)
+}
+
+type Filter interface {
+	Check(c *Call, result chan *FilterResult, cancel chan struct{}, done *sync.WaitGroup)
+}
+
+type FilterResult struct {
+	Err  error
+	Spam bool
+}
+
+type Filters []Filter
+
+func (a Filters) FirstSpam(c *Call) *FilterResult {
+	results, cancel, done := a.run(c)
+	for i := 0; i < len(a); i++ {
+		result := <-results
+		if result.Spam {
+			close(cancel)
+			done.Wait()
+			return result
 		}
 	}
+	done.Wait()
+	return nil
+}
+
+func (a Filters) run(c *Call) (<-chan *FilterResult, chan struct{}, *sync.WaitGroup) {
+	results := make(chan *FilterResult)
+	cancel := make(chan struct{})
+	wg := &sync.WaitGroup{}
+	wg.Add(len(a))
+	for _, filter := range a {
+		go filter.Check(c, results, cancel, wg)
+	}
+	return results, cancel, wg
+}
+
+type LocalBlackList struct {
+	Names []string
+}
+
+func (f *LocalBlackList) Check(c *Call, result chan *FilterResult, cancel chan struct{}, done *sync.WaitGroup) {
+	go func() {
+		defer done.Done()
+		for _, name := range f.Names {
+			if c.Name == name {
+				select {
+				case <-cancel:
+					return
+				case result <- &FilterResult{Spam: true}:
+					return
+				}
+			}
+		}
+		select {
+		case <-cancel:
+			return
+		case result <- &FilterResult{Spam: false}:
+			return
+		}
+	}()
 }
 
 func check(err error) {
