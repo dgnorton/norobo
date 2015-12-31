@@ -8,7 +8,7 @@ Spam / robo calling an epidemic and relativly little has been done to stop it.  
 When a call comes in, your phone rings once, norobo gets the caller ID from the modem, checks a list of blocked numbers / rules, and hangs up on them if it matches the list.
 
 ### Compatibility
-It's been tested on Linux using a "Zoom 3095 USB Mini External Modem" but it should (in theory) work with any Hayes compatible modem that support caller ID.  It may also work on Windows and OS X.
+It has been tested on *Linux* using a *Zoom 3095 USB Mini External Modem*.  It can be run on an RPi or other small ARM based computers capable of running Linux & Go apps.  It should also (in theory) work with any Hayes compatible modem that supports caller ID.  It may also work on Windows and OS X.
 
 ### Install
 Currently, it must be built from source.  You'll need the [Go tools](https://golang.org/doc/install), if you don't already have them installed.  Then clone this repo and build the code in `cmd/norobod`.
@@ -36,3 +36,13 @@ Then add yourself to the `dialout` group:
 ```
 $ usermod -a -G dialout dgnorton
 ```
+
+### Dev notes
+I use `socat` to create a pair of connected virtual serial ports for development and debug.  There's a hacky little modem simulator in `cmd/modem`.  `norobod` will talk to it and think it's talking to a modem.  The modem simulator has a simple HTTP API for simulating inbound calls.
+Create a pair of connected virtual serial ports:
+```
+$ socat -d -d pty,raw,echo=0 pty,raw,echo=0
+2015/12/30 20:22:20 socat[9498] N PTY is /dev/pts/30
+2015/12/30 20:22:20 socat[9498] N PTY is /dev/pts/31
+```
+It will tell you the ports it created.  In the example above it's `/dev/pts/30` and `/dev/pts/31`.  Pass one of those to the connect string when starting the modem simulator and the other in the connect string to `norobod`.
