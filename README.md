@@ -46,3 +46,8 @@ $ socat -d -d pty,raw,echo=0 pty,raw,echo=0
 2015/12/30 20:22:20 socat[9498] N PTY is /dev/pts/31
 ```
 It will tell you the ports it created.  In the example above it's `/dev/pts/30` and `/dev/pts/31`.  Pass one of those to the connect string when starting the modem simulator and the other in the connect string to `norobod`.
+
+Simulate a call
+```
+curl -X POST http://localhost:8087/call --data "name=John Doe&number=111-222-3333"
+```
