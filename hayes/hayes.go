@@ -429,15 +429,19 @@ func (m *Modem) run() {
 				a := strings.Split(r.Data, "=")
 				if len(a) == 2 {
 					call.Name = strings.TrimSpace(a[1])
-				}
-			} else if strings.Contains(r.Data, "NUMBER = ") {
-				a := strings.Split(r.Data, "=")
-				if len(a) == 2 {
-					call.Number = strings.TrimSpace(a[1])
 					m.handleCall(call)
 					callSent = call
 					call = nil
 				}
+			} else if strings.Contains(r.Data, "NMBR = ") {
+				a := strings.Split(r.Data, "=")
+				if len(a) == 2 {
+					call.Number = strings.TrimSpace(a[1])
+				}
+			} else if strings.Contains(r.Data, "DATE = ") {
+				// ignore it for now
+			} else if strings.Contains(r.Data, "TIME = ") {
+				// ignore it for now
 			}
 		} else if r == nil {
 			if call != nil && time.Now().Sub(call.Time) > (20*time.Second) {
