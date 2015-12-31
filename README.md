@@ -49,5 +49,5 @@ It will tell you the ports it created.  In the example above it's `/dev/pts/30` 
 
 Simulate a call
 ```
-curl -X POST http://localhost:8087/call --data "name=John Doe&number=111-222-3333"
+curl -X POST http://localhost:8087/call --data "name=John+Doe&number=111-222-3333"
 ```
