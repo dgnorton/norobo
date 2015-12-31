@@ -112,7 +112,7 @@ func (h *callHandler) Handle(c *hayes.Call) {
 		} else if err = h.modem.Hangup(); err != nil {
 			fmt.Println(err)
 		}
-		fmt.Printf("%s %s %s: blocked,filter=%s,rule=%s\n", c.Time, c.Name, c.Number, result.Filter.Description(), result.Description)
+		fmt.Printf("%s,%s,%s: blocked,filter=%s,rule=%s\n", c.Time, c.Name, c.Number, result.Filter.Description(), result.Description)
 		return
 	}
 

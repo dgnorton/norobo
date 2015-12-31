@@ -90,10 +90,13 @@ func serveCall(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Printf("call from %s at %s\n", name, number)
 
+	t := time.Now()
 	write(port, "RING\r\n")
 	time.Sleep(500 * time.Millisecond)
+	write(port, fmt.Sprintf("DATE = %s\r\n", t.Format("0102")))
+	write(port, fmt.Sprintf("TIME = %s\r\n", t.Format("1504")))
+	write(port, fmt.Sprintf("NMBR = %s\r\n", number))
 	write(port, fmt.Sprintf("NAME = %s\r\n", name))
-	write(port, fmt.Sprintf("NUMBER = %s\r\n", number))
 	write(port, "RING\r\n")
 	time.Sleep(500 * time.Millisecond)
 	write(port, "RING\r\n")
