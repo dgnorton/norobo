@@ -1,0 +1,13 @@
+"unassigned and used for spoofing","1?999.*","1?999.*",""
+"international call scam","1?876.*","1?876.*",""
+"international call scam","1?809.*","1?809.*",""
+"international call scam","1?649.*","1?649.*",""
+"international call scam","1?284.*","1?284.*",""
+"charity","^HOPE$","",""
+"spam","^V[0-9]*$","",""
+"name unavailable",".*[Uu]navail.*","",""
+"out-of-area",".*OUT-OF-AREA.*","",""
+"telemarketer",".*ELITE WATER.*","",""
+"spam",".*800 [Ss]ervice.*","8554776313",""
+"name contains number","","",NameContainsNumber
+"number contains name","","",NumberContainsName

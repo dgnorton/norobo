@@ -79,20 +79,10 @@ type callHandler struct {
 }
 
 func newCallHandler(m *hayes.Modem, callLogFile string) *callHandler {
-	bl := NewBlockList()
-	bl.Add("unassigned and used for spoofing", `1?999.*`, `1?999.*`, nil)
-	bl.Add("international call scam", `1?876.*`, `1?876.*`, nil)
-	bl.Add("international call scam", `1?809.*`, `1?809.*`, nil)
-	bl.Add("international call scam", `1?649.*`, `1?649.*`, nil)
-	bl.Add("international call scam", `1?284.*`, `1?284.*`, nil)
-	bl.Add("charity", `^HOPE$`, "", nil)
-	bl.Add("spam", `^V[0-9]*$`, "", nil)
-	bl.Add("name unavailable", `.*[Uu]navail.*`, "", nil)
-	bl.Add("out-of-area", `.*OUT-OF-AREA.*`, "", nil)
-	bl.Add("telemarketer", `.*ELITE WATER.*`, "", nil)
-	bl.Add("spam", `.*800 [Ss]ervice.*`, "8554776313", nil)
-	bl.Add("name contains number", "", "", NameContainsNumber)
-	bl.Add("number contains name", "", "", NumberContainsName)
+	bl, err := LoadListFile("block.csv")
+	if err != nil {
+		panic(err)
+	}
 
 	block := Filters{bl}
 	h := &callHandler{modem: m, block: block, callLogFile: callLogFile}

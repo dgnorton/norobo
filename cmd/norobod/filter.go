@@ -2,6 +2,10 @@ package main
 
 import (
 	"bytes"
+	"encoding/csv"
+	"fmt"
+	"io"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -85,6 +89,17 @@ func NumberContainsName(c *Call) bool {
 	return strings.Contains(number, name)
 }
 
+func lookupRuleFunc(name string) (func(*Call) bool, error) {
+	switch name {
+	case "NameContainsNumber":
+		return NameContainsNumber, nil
+	case "NumberContainsName":
+		return NumberContainsName, nil
+	default:
+		return nil, fmt.Errorf("unrecognized rule function: %s", name)
+	}
+}
+
 type Rule struct {
 	Description string
 	name        *regexp.Regexp
@@ -127,6 +142,38 @@ func NewBlockList() *BlockList {
 	return &BlockList{
 		description: "local block rules",
 	}
+}
+
+func LoadListFile(filepath string) (*BlockList, error) {
+	f, err := os.Open(filepath)
+	if err != nil {
+		return nil, err
+	}
+
+	bl := NewBlockList()
+	r := csv.NewReader(f)
+	for {
+		record, err := r.Read()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		} else if len(record) != 4 {
+			return nil, fmt.Errorf("expected 4 fields but found %d", len(record))
+		}
+
+		var fn func(*Call) bool
+		if record[3] != "" {
+			fn, err = lookupRuleFunc(record[3])
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		bl.Add(record[0], record[1], record[2], fn)
+	}
+
+	return bl, nil
 }
 
 func (l *BlockList) Add(description, name, number string, fn func(*Call) bool) error {
