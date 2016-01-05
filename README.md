@@ -2,7 +2,7 @@
 Norobo is a spam phone call blocker for land lines.  It uses a modem (remember those old things?) connected to a PC, RPi, etc. and plugged into any phone jack in your house.
 
 ### Motivation
-Spam / robo calling an epidemic and relativly little has been done to stop it.  There are some great services available like Nomorobo but unfortunately not all carriers offer the simulring feature it requires.  There are also features I want that that type of service may not offer.  E.g., temporarily block a number if it calls more than once in a minute, simultaneously check multiple online blacklist services, web interface for the call log, etc.
+Spam / robo calling is an epidemic and relativly little has been done to stop it.  There are some great services available like Nomorobo but unfortunately not all carriers offer the simulring feature it requires.  There are also features I want that that type of service may not offer.  E.g., temporarily block a number if it calls more than once in a minute, simultaneously check multiple online blacklist services, web interface for the call log, etc.
 
 ### How it works
 When a call comes in, your phone rings once, norobo gets the caller ID from the modem, checks a list of blocked numbers / rules, and hangs up on them if it matches the list.
