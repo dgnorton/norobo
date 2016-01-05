@@ -14,7 +14,9 @@ It has been tested on *Linux* using a *Zoom 3095 USB Mini External Modem*.  It c
 Currently, it must be built from source.  You'll need the [Go tools](https://golang.org/doc/install), if you don't already have them installed.  Then clone this repo and build the code in `cmd/norobod`.
 
 ### Configuration
-None at the moment.  How's that for easy?  The default filter is set up to block the most common patterns I've seen.  However, that means you'll have to edit `cmd/norobod/norobod.go` if you want to add or remove a rule from the call block filter.
+Call blocking rules are loaded from `block.csv` in the same directory as `norobod` is running.  `block.csv` is a comma separated value format.  The fields are (in order): description, name, number, function.  All fields are strings.  The `name` and `number` fields are [regular expressions](https://golang.org/pkg/regexp/syntax/).  The `function` field must be one of the built in filter functions:
+- `NameContainsNumber` matches any call where the caller's name contains the caller's number.  All symbols are stripped from both before the comparison is made.
+- `NumberContainsName` is the opposite of the previous rule.  It matches any call where the caller's number contains the caller's name.  All symbols are stripped from both before the comparison is made.
 
 ### Running
 On Linux:
