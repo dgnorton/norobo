@@ -52,7 +52,7 @@ func main() {
 			port.Write([]byte(s))
 			port.Write([]byte("\r\n"))
 			if s == "ATI3" {
-				write(port, "CX93001-EIS_V0.2002-V92\r\n")
+				write(port, "NOROBO MODEM SIMULATOR\r\n")
 			} else if s == "AT+FCLASS=?" {
 				write(port, "1,2,1.0,8\r\n")
 			} else if s == "AT+FCLASS?" {
