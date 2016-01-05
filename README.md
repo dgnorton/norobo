@@ -22,7 +22,7 @@ On Linux:
 - `ls /dev` to find the modem's name. It's `/dev/ttyACM0` for me.
 - `./norobod -c "/dev/ttyACM0,19200,n,8,1"`
 
-If it exists immediately with `permission denied`, you probably need to add yourself to the `dialout` group.  Check who owns the modem and what group it belongs to first:
+If it exits immediately with `permission denied`, you probably need to add yourself to the `dialout` group.  Check who owns the modem and what group it belongs to first:
 ```
 $ ls -l /dev/ttyACM0
 crw-rw---- 1 root dialout 166, 0 Dec 30 21:52 /dev/ttyACM0
