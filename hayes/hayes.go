@@ -411,6 +411,7 @@ func (m *Modem) run() {
 				// TODO: handle error
 				continue
 			}
+			println(r.Data)
 			if r.Data == "RING" {
 				if call == nil && callSent == nil {
 					call = &Call{Time: time.Now()}
@@ -434,6 +435,9 @@ func (m *Modem) run() {
 					call = nil
 				}
 			} else if strings.Contains(r.Data, "NMBR = ") {
+				if call == nil {
+					call = &Call{Time: time.Now()}
+				}
 				a := strings.Split(r.Data, "=")
 				if len(a) == 2 {
 					call.Number = strings.TrimSpace(a[1])

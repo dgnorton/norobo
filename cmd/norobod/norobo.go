@@ -21,7 +21,7 @@ func main() {
 	modem, err := hayes.Open(connstr)
 	check(err)
 
-	modem.SetCallHandler(newCallHandler(modem))
+	modem.SetCallHandler(newCallHandler(modem, "call_log.csv"))
 	modem.EnableSoftwareCache(false)
 
 	check(modem.Reset())
@@ -78,11 +78,12 @@ type Call struct {
 }
 
 type callHandler struct {
-	modem *hayes.Modem
-	block Filters
+	modem       *hayes.Modem
+	block       Filters
+	callLogFile string
 }
 
-func newCallHandler(m *hayes.Modem) *callHandler {
+func newCallHandler(m *hayes.Modem, callLogFile string) *callHandler {
 	bl := NewBlockList()
 	bl.Add("unassigned and used for spoofing", `1?999.*`, `1?999.*`, nil)
 	bl.Add("international call scam", `1?876.*`, `1?876.*`, nil)
@@ -99,24 +100,37 @@ func newCallHandler(m *hayes.Modem) *callHandler {
 	bl.Add("number contains name", "", "", NumberContainsName)
 
 	block := Filters{bl}
-	h := &callHandler{modem: m, block: block}
+	h := &callHandler{modem: m, block: block, callLogFile: callLogFile}
 	return h
 }
 
 func (h *callHandler) Handle(c *hayes.Call) {
 	call := &Call{Call: c}
 
-	if result := h.block.MatchAny(call); result != nil {
+	result := h.block.MatchAny(call)
+	if result.Action == Block {
 		if err := h.modem.Answer(); err != nil {
 			fmt.Println(err)
 		} else if err = h.modem.Hangup(); err != nil {
 			fmt.Println(err)
 		}
-		fmt.Printf("%s,%s,%s: blocked,filter=%s,rule=%s\n", c.Time, c.Name, c.Number, result.Filter.Description(), result.Description)
-		return
 	}
 
-	fmt.Printf("%s %s %s\n", c.Time, c.Name, c.Number)
+	h.logCall(call, result)
+}
+
+func (h *callHandler) logCall(c *Call, r *FilterResult) {
+	f, err := os.OpenFile(h.callLogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0770)
+	if err != nil {
+		println(err)
+		return
+	}
+	defer f.Close()
+	msg := fmt.Sprintf("%s,%s,%s,%s,%s,%s\n", c.Time, c.Name, c.Number, r.Action, r.FilterDescription(), r.Description)
+	if _, err := f.WriteString(msg); err != nil {
+		println(err)
+	}
+	fmt.Printf(msg)
 }
 
 type Filter interface {
@@ -124,11 +138,26 @@ type Filter interface {
 	Description() string
 }
 
+type Action string
+
+const (
+	Allow Action = "allow"
+	Block        = "block"
+)
+
 type FilterResult struct {
 	Err         error
 	Match       bool
+	Action      Action
 	Filter      Filter
 	Description string
+}
+
+func (r *FilterResult) FilterDescription() string {
+	if r.Filter != nil {
+		return r.Filter.Description()
+	}
+	return ""
 }
 
 type Filters []Filter
@@ -144,7 +173,7 @@ func (a Filters) MatchAny(c *Call) *FilterResult {
 		}
 	}
 	done.Wait()
-	return nil
+	return &FilterResult{Match: false, Action: Allow}
 }
 
 func (a Filters) run(c *Call) (<-chan *FilterResult, chan struct{}, *sync.WaitGroup) {
@@ -242,7 +271,7 @@ func (f *BlockList) Check(c *Call, result chan *FilterResult, cancel chan struct
 				select {
 				case <-cancel:
 					return
-				case result <- &FilterResult{Match: true, Filter: f, Description: rule.Description}:
+				case result <- &FilterResult{Match: true, Action: Block, Filter: f, Description: rule.Description}:
 					return
 				}
 			}
@@ -250,7 +279,7 @@ func (f *BlockList) Check(c *Call, result chan *FilterResult, cancel chan struct
 		select {
 		case <-cancel:
 			return
-		case result <- &FilterResult{Match: false, Filter: f}:
+		case result <- &FilterResult{Match: false, Action: Allow, Filter: f}:
 			return
 		}
 	}()
