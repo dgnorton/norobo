@@ -37,6 +37,12 @@ Then add yourself to the `dialout` group:
 $ usermod -a -G dialout dgnorton
 ```
 
+### Desktop notifications
+If you happen to be running it on a Ubuntu Desktop machine and would like desktop notifications, this shell script one-liner will work.
+```
+while inotifywait -e close_write call_log.csv; do notify-send "Call From..." "`tail -n1 call_log.csv | awk -F, '{ print $2 " at " $3 }'`"; done
+```
+
 ### Dev notes
 I use `socat` to create a pair of connected virtual serial ports for development and debug.  There's a hacky little modem simulator in `cmd/modem`.  `norobod` will talk to it and think it's talking to a modem.  The modem simulator has a simple HTTP API for simulating inbound calls.
 Create a pair of connected virtual serial ports:
