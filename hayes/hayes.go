@@ -414,7 +414,7 @@ func (m *Modem) run() {
 			println(r.Data)
 			if r.Data == "RING" {
 				if call == nil && callSent == nil {
-					call = &Call{Time: time.Now()}
+					call = m.newCall()
 					if m.callerIDMode == CallerIDOff {
 						// Not waiting on caller ID so send the call.
 						m.handleCall(call)
@@ -425,7 +425,7 @@ func (m *Modem) run() {
 				}
 			} else if strings.Contains(r.Data, "NAME = ") {
 				if call == nil {
-					call = &Call{Time: time.Now()}
+					call = m.newCall()
 				}
 				a := strings.Split(r.Data, "=")
 				if len(a) == 2 {
@@ -436,7 +436,7 @@ func (m *Modem) run() {
 				}
 			} else if strings.Contains(r.Data, "NMBR = ") {
 				if call == nil {
-					call = &Call{Time: time.Now()}
+					call = m.newCall()
 				}
 				a := strings.Split(r.Data, "=")
 				if len(a) == 2 {
@@ -462,10 +462,24 @@ func (m *Modem) run() {
 	}
 }
 
+func (m *Modem) newCall() *Call {
+	return &Call{modem: m, Time: time.Now()}
+}
+
 type Call struct {
+	modem  *Modem
 	Time   time.Time
 	Name   string
 	Number string
+}
+
+func (c *Call) Block() error {
+	if err := c.modem.Answer(); err != nil {
+		return err
+	} else if err = c.modem.Hangup(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *Modem) readResponse() *Response {
