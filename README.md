@@ -39,7 +39,7 @@ Then add yourself to the `dialout` group:
 $ usermod -a -G dialout dgnorton
 ```
 ### Call log
-Calls are logged to `call_log.csv` in the same directory that `norobod` is running.  The file is a comma separated value format.  The fields are (in order): time, caller name, caller number, action taken, filter name, rule description.
+Calls are logged to `call_log.csv` in the same directory that `norobod` is running.  The file is a comma separated value format.  The fields are (in order): time, caller name, caller number, action taken, filter name, rule description.  The call log can also be viewed by web browser on port `7080`.
 
 ### Desktop notifications
 If you happen to be running it on a Ubuntu Desktop machine and would like desktop notifications, this shell script one-liner will work.
