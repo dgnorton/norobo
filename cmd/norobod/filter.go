@@ -19,9 +19,22 @@ type Filter interface {
 
 type Action string
 
+func (a Action) String() string { return string(a) }
+
+func ParseAction(s string) (Action, error) {
+	switch s {
+	case Allow.String():
+		return Allow, nil
+	case Block.String():
+		return Block, nil
+	default:
+		return Allow, fmt.Errorf("unrecognized action: %s", s)
+	}
+}
+
 const (
-	Allow Action = "allow"
-	Block        = "block"
+	Allow = Action("allow")
+	Block = Action("block")
 )
 
 type FilterResult struct {
