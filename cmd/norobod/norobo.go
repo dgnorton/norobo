@@ -194,7 +194,7 @@ type callHandler struct {
 }
 
 func newCallHandler(m *hayes.Modem, callLogFile string) *callHandler {
-	bl, err := LoadListFile("block.csv")
+	bl, err := LoadFilterFile("block.csv", Block, Allow)
 	if err != nil {
 		panic(err)
 	}
@@ -220,7 +220,7 @@ func newCallHandler(m *hayes.Modem, callLogFile string) *callHandler {
 func (h *callHandler) Handle(c *hayes.Call) {
 	call := &Call{Call: c}
 
-	call.FilterResult = h.block.MatchAny(call)
+	call.FilterResult = h.block.Run(call)
 	if call.FilterResult.Action == Block {
 		call.Block()
 	}
