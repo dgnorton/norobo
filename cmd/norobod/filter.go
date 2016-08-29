@@ -13,7 +13,13 @@ import (
 )
 
 type Filter interface {
+	// Check runs a call through the filter. Results are returned through the
+	// result channel. The caller can stop the filter by closing the cancel
+	// channel. The filter will signal the done wait group when it has finished.
 	Check(c *Call, result chan *FilterResult, cancel chan struct{}, done *sync.WaitGroup)
+	// Action returns the action to be taken when a call matches the filter.
+	Action() Action
+	// Description returns a description of the filter.
 	Description() string
 }
 
@@ -54,29 +60,49 @@ func (r *FilterResult) FilterDescription() string {
 
 type Filters []Filter
 
-func (a Filters) MatchAny(c *Call) *FilterResult {
-	results, cancel, done := a.run(c)
-	for i := 0; i < len(a); i++ {
-		result := <-results
-		if result.Match {
-			close(cancel)
-			done.Wait()
-			return result
-		}
+func (a Filters) Run(call *Call) *FilterResult {
+	// Check filters with Allow action first.
+	if result := a.RunAction(Allow, call); result.Match {
+		return result
 	}
-	done.Wait()
-	return &FilterResult{Match: false, Action: Allow}
+
+	// Check filters with Block action.
+	return a.RunAction(Block, call)
 }
 
-func (a Filters) run(c *Call) (<-chan *FilterResult, chan struct{}, *sync.WaitGroup) {
+func (a Filters) RunAction(action Action, call *Call) *FilterResult {
+	results, cancel, done := a.run(action, call)
+	for {
+		select {
+		case <-done:
+			return &FilterResult{Match: false, Action: Allow}
+		case result := <-results:
+			if result.Match {
+				close(cancel)
+				return result
+			}
+		}
+	}
+}
+
+func (a Filters) run(action Action, call *Call) (<-chan *FilterResult, chan struct{}, chan struct{}) {
+	//func (a Filters) run(action Action, call *Call) (<-chan *FilterResult, int, chan struct{}, *sync.WaitGroup) {
 	results := make(chan *FilterResult)
 	cancel := make(chan struct{})
+	done := make(chan struct{})
 	wg := &sync.WaitGroup{}
-	wg.Add(len(a))
 	for _, filter := range a {
-		go filter.Check(c, results, cancel, wg)
+		if filter.Action() != action {
+			continue
+		}
+		wg.Add(1)
+		go filter.Check(call, results, cancel, wg)
 	}
-	return results, cancel, wg
+
+	// When all filters are finished, signal the caller.
+	go func() { wg.Wait(); close(done) }()
+
+	return results, cancel, done
 }
 
 // alphas returns a new string containing only the alpha-numeric characters.
@@ -97,8 +123,6 @@ func NameContainsNumber(c *Call) bool {
 
 func NumberContainsName(c *Call) bool {
 	name, number := alphas(c.Name), alphas(c.Number)
-	println(name)
-	println(number)
 	return strings.Contains(number, name)
 }
 
@@ -146,24 +170,28 @@ func (r *Rule) Match(call *Call) bool {
 	return false
 }
 
-type BlockList struct {
-	description string
-	Rules       []*Rule
+type LocalFilter struct {
+	description   string
+	action        Action
+	noMatchAction Action
+	Rules         []*Rule
 }
 
-func NewBlockList() *BlockList {
-	return &BlockList{
-		description: "local block rules",
+func NewLocalFilter(description string, action, noMatchAction Action) *LocalFilter {
+	return &LocalFilter{
+		description:   description,
+		action:        action,
+		noMatchAction: noMatchAction,
 	}
 }
 
-func LoadListFile(filepath string) (*BlockList, error) {
+func LoadFilterFile(filepath string, action, noMatchAction Action) (*LocalFilter, error) {
 	f, err := os.Open(filepath)
 	if err != nil {
 		return nil, err
 	}
 
-	bl := NewBlockList()
+	bl := NewLocalFilter(filepath, action, noMatchAction)
 	r := csv.NewReader(f)
 	for {
 		record, err := r.Read()
@@ -189,7 +217,7 @@ func LoadListFile(filepath string) (*BlockList, error) {
 	return bl, nil
 }
 
-func (l *BlockList) Add(description, name, number string, fn func(*Call) bool) error {
+func (l *LocalFilter) Add(description, name, number string, fn func(*Call) bool) error {
 	c, err := NewRule(description, name, number, fn)
 	if err != nil {
 		return err
@@ -198,7 +226,7 @@ func (l *BlockList) Add(description, name, number string, fn func(*Call) bool) e
 	return nil
 }
 
-func (f *BlockList) Check(c *Call, result chan *FilterResult, cancel chan struct{}, done *sync.WaitGroup) {
+func (f *LocalFilter) Check(c *Call, result chan *FilterResult, cancel chan struct{}, done *sync.WaitGroup) {
 	go func() {
 		defer done.Done()
 		for _, rule := range f.Rules {
@@ -206,7 +234,7 @@ func (f *BlockList) Check(c *Call, result chan *FilterResult, cancel chan struct
 				select {
 				case <-cancel:
 					return
-				case result <- &FilterResult{Match: true, Action: Block, Filter: f, Description: rule.Description}:
+				case result <- &FilterResult{Match: true, Action: f.action, Filter: f, Description: rule.Description}:
 					return
 				}
 			}
@@ -214,12 +242,11 @@ func (f *BlockList) Check(c *Call, result chan *FilterResult, cancel chan struct
 		select {
 		case <-cancel:
 			return
-		case result <- &FilterResult{Match: false, Action: Allow, Filter: f}:
+		case result <- &FilterResult{Match: false, Action: f.noMatchAction, Filter: f}:
 			return
 		}
 	}()
 }
 
-func (f *BlockList) Description() string {
-	return f.description
-}
+func (f *LocalFilter) Description() string { return f.description }
+func (f *LocalFilter) Action() Action      { return f.action }
