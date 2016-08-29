@@ -9,12 +9,12 @@ import (
 
 func Test_Filters(t *testing.T) {
 	// Create a block filter.
-	bl, err := LoadFilterFile("block.csv", Block, Allow)
+	bl, err := LoadFilterFile("block.csv", Block)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Create an allow filter.
-	al := NewLocalFilter("allow filter", Allow, Allow)
+	al := NewLocalFilter("allow filter", Allow)
 	if err := al.Add("testing allow filter", "Good Person", "16495551313", nil); err != nil {
 		t.Fatal(err)
 	}

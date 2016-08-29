@@ -15,14 +15,23 @@ import (
 )
 
 func main() {
-	var connstr string
+	var (
+		connstr     string
+		blockFile   string
+		allowFile   string
+		callLogFile string
+	)
+
 	flag.StringVar(&connstr, "c", "/dev/ttyACM0,19200,n,8,1", "serial port connect string (port,baud,handshake,data-bits,stop-bits)")
+	flag.StringVar(&blockFile, "block", "", "path to file containing patterns to block")
+	flag.StringVar(&allowFile, "allow", "", "path to file containing patterns to allow")
+	flag.StringVar(&callLogFile, "call-log", "", "path to call log file")
 	flag.Parse()
 
 	modem, err := hayes.Open(connstr)
 	check(err)
 
-	callHandler := newCallHandler(modem, "call_log.csv")
+	callHandler := newCallHandler(modem, blockFile, allowFile, callLogFile)
 	modem.SetCallHandler(callHandler)
 	modem.EnableSoftwareCache(false)
 
@@ -68,8 +77,6 @@ func main() {
 	cidMode, err = modem.CallerIDMode()
 	check(err)
 	fmt.Printf("caller ID mode: %s\n", cidMode)
-
-	//select {}
 
 	// Start call log web server.
 	s := &http.Server{
@@ -186,17 +193,30 @@ func LoadCallLog(filename string) (*CallLog, error) {
 
 type callHandler struct {
 	modem          *hayes.Modem
-	block          Filters
+	filters        Filters
 	callLogFile    string
 	mu             sync.RWMutex
 	callLog        *CallLog
 	callLogChanged chan struct{}
 }
 
-func newCallHandler(m *hayes.Modem, callLogFile string) *callHandler {
-	bl, err := LoadFilterFile("block.csv", Block, Allow)
-	if err != nil {
-		panic(err)
+func newCallHandler(m *hayes.Modem, blockFile, allowFile, callLogFile string) *callHandler {
+	filters := Filters{}
+
+	if blockFile != "" {
+		block, err := LoadFilterFile(blockFile, Block)
+		if err != nil {
+			panic(err)
+		}
+		filters = append(filters, block)
+	}
+
+	if allowFile != "" {
+		allow, err := LoadFilterFile(allowFile, Allow)
+		if err != nil {
+			panic(err)
+		}
+		filters = append(filters, allow)
 	}
 
 	callLog, err := LoadCallLog(callLogFile)
@@ -204,11 +224,9 @@ func newCallHandler(m *hayes.Modem, callLogFile string) *callHandler {
 		panic(err)
 	}
 
-	block := Filters{bl}
-
 	h := &callHandler{
 		modem:          m,
-		block:          block,
+		filters:        filters,
 		callLogFile:    callLogFile,
 		callLog:        callLog,
 		callLogChanged: make(chan struct{}),
@@ -220,7 +238,7 @@ func newCallHandler(m *hayes.Modem, callLogFile string) *callHandler {
 func (h *callHandler) Handle(c *hayes.Call) {
 	call := &Call{Call: c}
 
-	call.FilterResult = h.block.Run(call)
+	call.FilterResult = h.filters.Run(call)
 	if call.FilterResult.Action == Block {
 		call.Block()
 	}

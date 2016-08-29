@@ -171,27 +171,25 @@ func (r *Rule) Match(call *Call) bool {
 }
 
 type LocalFilter struct {
-	description   string
-	action        Action
-	noMatchAction Action
-	Rules         []*Rule
+	description string
+	action      Action
+	Rules       []*Rule
 }
 
-func NewLocalFilter(description string, action, noMatchAction Action) *LocalFilter {
+func NewLocalFilter(description string, action Action) *LocalFilter {
 	return &LocalFilter{
-		description:   description,
-		action:        action,
-		noMatchAction: noMatchAction,
+		description: description,
+		action:      action,
 	}
 }
 
-func LoadFilterFile(filepath string, action, noMatchAction Action) (*LocalFilter, error) {
+func LoadFilterFile(filepath string, action Action) (*LocalFilter, error) {
 	f, err := os.Open(filepath)
 	if err != nil {
 		return nil, err
 	}
 
-	bl := NewLocalFilter(filepath, action, noMatchAction)
+	bl := NewLocalFilter(filepath, action)
 	r := csv.NewReader(f)
 	for {
 		record, err := r.Read()
@@ -242,7 +240,7 @@ func (f *LocalFilter) Check(c *Call, result chan *FilterResult, cancel chan stru
 		select {
 		case <-cancel:
 			return
-		case result <- &FilterResult{Match: false, Action: f.noMatchAction, Filter: f}:
+		case result <- &FilterResult{Match: false, Action: Allow, Filter: f}:
 			return
 		}
 	}()
