@@ -16,22 +16,26 @@ import (
 
 func main() {
 	var (
-		connstr     string
-		blockFile   string
-		allowFile   string
-		callLogFile string
+		connstr        string
+		blockFile      string
+		allowFile      string
+		callLogFile    string
+		twloAccountSID string
+		twloToken      string
 	)
 
 	flag.StringVar(&connstr, "c", "/dev/ttyACM0,19200,n,8,1", "serial port connect string (port,baud,handshake,data-bits,stop-bits)")
 	flag.StringVar(&blockFile, "block", "", "path to file containing patterns to block")
 	flag.StringVar(&allowFile, "allow", "", "path to file containing patterns to allow")
 	flag.StringVar(&callLogFile, "call-log", "", "path to call log file")
+	flag.StringVar(&twloAccountSID, "twlo-sid", "", "Twilio account SID")
+	flag.StringVar(&twloToken, "twlo-token", "", "Twilio token")
 	flag.Parse()
 
 	modem, err := hayes.Open(connstr)
 	check(err)
 
-	callHandler := newCallHandler(modem, blockFile, allowFile, callLogFile)
+	callHandler := newCallHandler(modem, blockFile, allowFile, twloAccountSID, twloToken, callLogFile)
 	modem.SetCallHandler(callHandler)
 	modem.EnableSoftwareCache(false)
 
@@ -130,7 +134,7 @@ type callHandler struct {
 	callLogChanged chan struct{}
 }
 
-func newCallHandler(m *hayes.Modem, blockFile, allowFile, callLogFile string) *callHandler {
+func newCallHandler(m *hayes.Modem, blockFile, allowFile, twloAccountSID, twloToken, callLogFile string) *callHandler {
 	filters := norobo.Filters{}
 
 	if blockFile != "" {
@@ -148,6 +152,8 @@ func newCallHandler(m *hayes.Modem, blockFile, allowFile, callLogFile string) *c
 		}
 		filters = append(filters, allow)
 	}
+
+	filters = append(filters, filter.NewTwilio(twloAccountSID, twloToken))
 
 	callLog, err := norobo.LoadCallLog(callLogFile)
 	if err != nil {
