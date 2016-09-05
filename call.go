@@ -23,7 +23,7 @@ type CallEntry struct {
 	Number string    `json:"number"`
 	Action string    `json:"action"`
 	Filter string    `json:"filter"`
-	Rule   string    `json:"rule"`
+	Reason string    `json:"reason"`
 }
 
 // CallLog represents a list of completed (ended) calls.
@@ -73,7 +73,7 @@ func LoadCallLog(filename string) (*CallLog, error) {
 			Number: r[2],
 			Action: r[3],
 			Filter: r[4],
-			Rule:   r[5],
+			Reason: r[5],
 		}
 
 		calls.Calls = append(calls.Calls, call)

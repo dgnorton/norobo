@@ -27,7 +27,8 @@ func (t *Twilio) Check(c *norobo.Call, result chan *norobo.FilterResult, cancel 
 		defer done.Done()
 
 		// Build the HTTP request to Twilio's Lookup service.
-		url := fmt.Sprintf("https://lookups.twilio.com/v1/PhoneNumbers/%s?AddOns=", c.Number)
+		url := fmt.Sprintf("https://lookups.twilio.com/v1/PhoneNumbers/%s?AddOns=whitepages_pro_phone_rep", c.Number)
+		fmt.Println(url)
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			result <- &norobo.FilterResult{Err: err, Action: norobo.Allow}
@@ -51,12 +52,26 @@ func (t *Twilio) Check(c *norobo.Call, result chan *norobo.FilterResult, cancel 
 		}
 
 		// Check Twilio response.
+		if twloResp.AddOns == nil {
+			result <- &norobo.FilterResult{Err: errors.New("no response from Twilio Whitepages Pro Phone Rep"), Action: norobo.Allow}
+			return
+		}
+
 		category, err := twloResp.AddOns.WppRepCategory()
 		if err != nil {
 			result <- &norobo.FilterResult{Err: err, Action: norobo.Allow}
 			return
-		} else if category != "NotSpam" && category != "NotAplicable" {
-			result <- &norobo.FilterResult{Match: true, Action: t.Action(), Filter: t, Description: "Twilio"}
+		}
+
+		typ, err := twloResp.AddOns.WppRepType()
+		if err != nil {
+			result <- &norobo.FilterResult{Err: err, Action: norobo.Allow}
+			return
+		}
+
+		if category != "NotSpam" && category != "NotApplicable" {
+			desc := fmt.Sprintf("%s:%s", typ, category)
+			result <- &norobo.FilterResult{Match: true, Action: t.Action(), Filter: t, Description: desc}
 			return
 		}
 
@@ -65,7 +80,7 @@ func (t *Twilio) Check(c *norobo.Call, result chan *norobo.FilterResult, cancel 
 }
 
 func (f *Twilio) Action() norobo.Action { return norobo.Block }
-func (f *Twilio) Description() string   { return "Twilio" }
+func (f *Twilio) Description() string   { return "Twilio (White Pages Pro Phone Reputation)" }
 
 //{
 //    "add_ons": {
@@ -143,48 +158,105 @@ type AddOnsResponse struct {
 
 // WppRepNumber returns the witepages_pro_phone_rep phone_number.
 func (r *AddOnsResponse) WppRepNumber() (string, error) {
-	results, ok := r.Results.(map[string]interface{})
-	if !ok {
-		return "", errors.New("no add-on results")
+	if err := r.whitePagesProPhoneRepStatus(); err != nil {
+		return "", err
 	}
 
-	wppprI, ok := results["whitepages_pro_phone_rep"]
-	if !ok {
-		return "", errors.New("no results for whitepages_pro_phone_rep add-on")
-	}
-	wpppr := wppprI.(map[string]interface{})
-
-	status := wpppr["status"].(string)
-	if status != "successful" {
-		return "", fmt.Errorf("witepages_pro_phone_rep add-on status: %s", status)
+	results, err := r.whitePagesProPhoneRepResults()
+	if err != nil {
+		return "", err
 	}
 
-	wppprResults := wpppr["result"].(map[string]interface{})["results"].([]interface{})
+	return results[0].(map[string]interface{})["phone_number"].(string), nil
+}
 
-	return wppprResults[0].(map[string]interface{})["phone_number"].(string), nil
+// WppRepType returns the witepages_pro_phone_rep type.
+func (r *AddOnsResponse) WppRepType() (string, error) {
+	if err := r.whitePagesProPhoneRepStatus(); err != nil {
+		return "", err
+	}
+
+	details, err := r.whitePagesProPhoneRepDetails()
+	if err != nil {
+		return "", err
+	}
+
+	return details[0].(map[string]interface{})["type"].(string), nil
 }
 
 // WppRepCategory returns the witepages_pro_phone_rep category.
 func (r *AddOnsResponse) WppRepCategory() (string, error) {
+	if err := r.whitePagesProPhoneRepStatus(); err != nil {
+		return "", err
+	}
+
+	details, err := r.whitePagesProPhoneRepDetails()
+	if err != nil {
+		return "", err
+	}
+
+	return details[0].(map[string]interface{})["category"].(string), nil
+}
+
+func (r *AddOnsResponse) addOnResults() (map[string]interface{}, error) {
 	results, ok := r.Results.(map[string]interface{})
 	if !ok {
-		return "", errors.New("no add-on results")
+		return nil, errors.New("no add-on results")
+	}
+	return results, nil
+}
+
+func (r *AddOnsResponse) whitePagesProPhoneRep() (map[string]interface{}, error) {
+	results, err := r.addOnResults()
+	if err != nil {
+		return nil, err
 	}
 
 	wppprI, ok := results["whitepages_pro_phone_rep"]
 	if !ok {
-		return "", errors.New("no results for whitepages_pro_phone_rep add-on")
+		return nil, errors.New("no results for whitepages_pro_phone_rep add-on")
 	}
-	wpppr := wppprI.(map[string]interface{})
+
+	return wppprI.(map[string]interface{}), nil
+}
+
+func (r *AddOnsResponse) whitePagesProPhoneRepStatus() error {
+	wpppr, err := r.whitePagesProPhoneRep()
+	if err != nil {
+		return err
+	}
 
 	status := wpppr["status"].(string)
 	if status != "successful" {
-		return "", fmt.Errorf("witepages_pro_phone_rep add-on status: %s", status)
+		return fmt.Errorf("witepages_pro_phone_rep add-on status: %s", status)
 	}
 
-	wppprResults := wpppr["result"].(map[string]interface{})["results"].([]interface{})
-	reputation := wppprResults[0].(map[string]interface{})["reputation"].(map[string]interface{})
-	details := reputation["details"].([]interface{})
+	return nil
+}
 
-	return details[0].(map[string]interface{})["category"].(string), nil
+func (r *AddOnsResponse) whitePagesProPhoneRepResults() ([]interface{}, error) {
+	wpppr, err := r.whitePagesProPhoneRep()
+	if err != nil {
+		return nil, err
+	}
+
+	return wpppr["result"].(map[string]interface{})["results"].([]interface{}), nil
+}
+
+func (r *AddOnsResponse) whitePagesProPhoneRepReputation() (map[string]interface{}, error) {
+	results, err := r.whitePagesProPhoneRepResults()
+	if err != nil {
+		return nil, err
+	}
+
+	return results[0].(map[string]interface{})["reputation"].(map[string]interface{}), nil
+}
+
+func (r *AddOnsResponse) whitePagesProPhoneRepDetails() ([]interface{}, error) {
+	reputation, err := r.whitePagesProPhoneRepReputation()
+	if err != nil {
+		return nil, err
+	}
+
+	return reputation["details"].([]interface{}), nil
 }

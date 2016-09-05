@@ -115,7 +115,7 @@ func (h *webHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *webHandler) serveCalls(w http.ResponseWriter, r *http.Request) {
-	<-h.callHandler.CallLogChanged(time.Now())
+	//<-h.callHandler.CallLogChanged(time.Now())
 	log := h.callHandler.CallLog()
 	b, err := json.Marshal(log)
 	if err != nil {
@@ -231,7 +231,7 @@ func (h *callHandler) log(c *norobo.Call) {
 		Number: c.Number,
 		Action: r.Action.String(),
 		Filter: r.FilterDescription(),
-		Rule:   r.Description,
+		Reason: r.Description,
 	}
 
 	h.callLog.Calls = append(h.callLog.Calls, call)
