@@ -1,37 +1,41 @@
 package main
 
 import (
-	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/dgnorton/norobo"
+	"github.com/dgnorton/norobo/filter"
 	"github.com/dgnorton/norobo/hayes"
 )
 
 func main() {
 	var (
-		connstr     string
-		blockFile   string
-		allowFile   string
-		callLogFile string
+		connstr        string
+		blockFile      string
+		allowFile      string
+		callLogFile    string
+		twloAccountSID string
+		twloToken      string
 	)
 
 	flag.StringVar(&connstr, "c", "/dev/ttyACM0,19200,n,8,1", "serial port connect string (port,baud,handshake,data-bits,stop-bits)")
 	flag.StringVar(&blockFile, "block", "", "path to file containing patterns to block")
 	flag.StringVar(&allowFile, "allow", "", "path to file containing patterns to allow")
 	flag.StringVar(&callLogFile, "call-log", "", "path to call log file")
+	flag.StringVar(&twloAccountSID, "twlo-sid", "", "Twilio account SID")
+	flag.StringVar(&twloToken, "twlo-token", "", "Twilio token")
 	flag.Parse()
 
 	modem, err := hayes.Open(connstr)
 	check(err)
 
-	callHandler := newCallHandler(modem, blockFile, allowFile, callLogFile)
+	callHandler := newCallHandler(modem, blockFile, allowFile, twloAccountSID, twloToken, callLogFile)
 	modem.SetCallHandler(callHandler)
 	modem.EnableSoftwareCache(false)
 
@@ -111,7 +115,7 @@ func (h *webHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *webHandler) serveCalls(w http.ResponseWriter, r *http.Request) {
-	<-h.callHandler.CallLogChanged(time.Now())
+	//<-h.callHandler.CallLogChanged(time.Now())
 	log := h.callHandler.CallLog()
 	b, err := json.Marshal(log)
 	if err != nil {
@@ -121,90 +125,20 @@ func (h *webHandler) serveCalls(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
-// Call represents the current in-progress call.
-type Call struct {
-	*hayes.Call
-	FilterResult *FilterResult
-}
-
-// CallEntry represents a completed (ended) call.
-type CallEntry struct {
-	Time   time.Time `json:"time"`
-	Name   string    `json:"name"`
-	Number string    `json:"number"`
-	Action string    `json:"action"`
-	Filter string    `json:"filter"`
-	Rule   string    `json:"rule"`
-}
-
-// CallLog represents a list of completed (ended) calls.
-type CallLog struct {
-	Calls []*CallEntry `json:"calls"`
-}
-
-func (l *CallLog) LastTime() time.Time {
-	return l.Calls[len(l.Calls)-1].Time
-}
-
-func LoadCallLog(filename string) (*CallLog, error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, err
-		}
-		return &CallLog{
-			Calls: make([]*CallEntry, 0),
-		}, nil
-	}
-
-	records, err := csv.NewReader(f).ReadAll()
-	if err != nil {
-		return nil, err
-	}
-
-	calls := &CallLog{
-		Calls: make([]*CallEntry, 0, len(records)),
-	}
-
-	for _, r := range records {
-		if len(r) != 6 {
-			return nil, fmt.Errorf("expected 6 fields but got %d: %s", len(r), strings.Join(r, ","))
-		}
-
-		t, err := time.Parse(time.RFC3339Nano, r[0])
-		if err != nil {
-			return nil, err
-		}
-
-		call := &CallEntry{
-			Time:   t,
-			Name:   r[1],
-			Number: r[2],
-			Action: r[3],
-			Filter: r[4],
-			Rule:   r[5],
-		}
-
-		calls.Calls = append(calls.Calls, call)
-	}
-
-	return calls, nil
-}
-
 type callHandler struct {
 	modem          *hayes.Modem
-	filters        Filters
+	filters        norobo.Filters
 	callLogFile    string
 	mu             sync.RWMutex
-	callLog        *CallLog
+	callLog        *norobo.CallLog
 	callLogChanged chan struct{}
 }
 
-func newCallHandler(m *hayes.Modem, blockFile, allowFile, callLogFile string) *callHandler {
-	filters := Filters{}
+func newCallHandler(m *hayes.Modem, blockFile, allowFile, twloAccountSID, twloToken, callLogFile string) *callHandler {
+	filters := norobo.Filters{}
 
 	if blockFile != "" {
-		block, err := LoadFilterFile(blockFile, Block)
+		block, err := filter.LoadFilterFile(blockFile, norobo.Block)
 		if err != nil {
 			panic(err)
 		}
@@ -212,14 +146,16 @@ func newCallHandler(m *hayes.Modem, blockFile, allowFile, callLogFile string) *c
 	}
 
 	if allowFile != "" {
-		allow, err := LoadFilterFile(allowFile, Allow)
+		allow, err := filter.LoadFilterFile(allowFile, norobo.Allow)
 		if err != nil {
 			panic(err)
 		}
 		filters = append(filters, allow)
 	}
 
-	callLog, err := LoadCallLog(callLogFile)
+	filters = append(filters, filter.NewTwilio(twloAccountSID, twloToken))
+
+	callLog, err := norobo.LoadCallLog(callLogFile)
 	if err != nil {
 		panic(err)
 	}
@@ -236,17 +172,17 @@ func newCallHandler(m *hayes.Modem, blockFile, allowFile, callLogFile string) *c
 }
 
 func (h *callHandler) Handle(c *hayes.Call) {
-	call := &Call{Call: c}
+	call := &norobo.Call{Call: c}
 
 	call.FilterResult = h.filters.Run(call)
-	if call.FilterResult.Action == Block {
+	if call.FilterResult.Action == norobo.Block {
 		call.Block()
 	}
 
 	h.log(call)
 }
 
-func (h *callHandler) CallLog() *CallLog {
+func (h *callHandler) CallLog() *norobo.CallLog {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return h.callLog
@@ -278,7 +214,7 @@ func (h *callHandler) CallLogChanged(after time.Time) chan struct{} {
 	return changedCh
 }
 
-func (h *callHandler) log(c *Call) {
+func (h *callHandler) log(c *norobo.Call) {
 	f, err := os.OpenFile(h.callLogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0770)
 	if err != nil {
 		println(err)
@@ -289,13 +225,13 @@ func (h *callHandler) log(c *Call) {
 	msg := fmt.Sprintf(`"%s","%s","%s","%s","%s","%s"%s`, c.Time.Format(time.RFC3339Nano), c.Name, c.Number, r.Action, r.FilterDescription(), r.Description, "\n")
 
 	h.mu.Lock()
-	call := &CallEntry{
+	call := &norobo.CallEntry{
 		Time:   c.Time,
 		Name:   c.Name,
 		Number: c.Number,
 		Action: r.Action.String(),
 		Filter: r.FilterDescription(),
-		Rule:   r.Description,
+		Reason: r.Description,
 	}
 
 	h.callLog.Calls = append(h.callLog.Calls, call)
