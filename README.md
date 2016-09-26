@@ -5,7 +5,7 @@ Norobo is a spam phone call blocker for land lines.  It uses a modem (remember t
 Spam / robo calling is an epidemic and relativly little has been done to stop it.  There are some great services available like Nomorobo but unfortunately not all carriers offer the simulring feature it requires.  There are also features I want that that type of service may not offer.  E.g., temporarily block a number if it calls more than once in a minute, simultaneously check multiple online blacklist services, web interface for the call log, etc.
 
 ### How it works
-When a call comes in, your phone rings once, norobo gets the caller ID from the modem, checks a list of blocked numbers / rules, and hangs up on them if it matches the list.
+When a call comes in, your phone rings once, `norobod` gets the caller ID from the modem, runs the caller's info through the filters, and hangs up if the filters flag it as spam. You feel immediate pleasure from hearing the single ring, knowing `norobod` just hung up on a sleezy spammer.
 
 ### Compatibility
 It has been tested on *Linux* using a *Zoom 3095 USB Mini External Modem*.  It can be run on an RPi or other small ARM based computers capable of running Linux & Go apps.  It should also (in theory) work with any Hayes compatible modem that supports caller ID.  It may also work on Windows and OS X.
@@ -13,12 +13,12 @@ It has been tested on *Linux* using a *Zoom 3095 USB Mini External Modem*.  It c
 ### Install
 Currently, it must be built from source.  You'll need the [Go tools](https://golang.org/doc/install), if you don't already have them installed.  Then clone this repo and build the code in `cmd/norobod`.
 
-### How `norobo` call filters work
-`norobo` currently supports two filters: local and Twilio. 
+### How call filters work
+`norobod` currently supports two filters: local and Twilio. 
 #### Local
-Local filters run locally and do not send incoming call info out to external services to perform filtering. There are two typs of local filters: `allow` and `block`. Both are optional. `Allow` filters are special in that they run first and not concurrently with any other filters. If a call matches an allow filter, it is allowed through immediately with no further filtering. `Block` filters run concurrently with the Twilio filter, if configured. If a call matches a `block` filter, `norobod` will answer the call, immediately hangup, and cancel any other concurrent filters that are running.
+Local filters run locally and do not send incoming call info out to external services to perform filtering. There are two types of local filters: `allow` and `block`. Both are optional. `Allow` filters are special in that they run first and not concurrently with any other filters. If a call matches an allow filter, it is allowed through immediately with no further filtering. `Block` filters run concurrently with the Twilio filter, if configured. If a call matches a `block` filter, `norobod` will answer the call, immediately hangup, and cancel any other concurrent filters that are running.
 #### Twilio
-The Twilio filter is optional and requires a [Twilio](https://www.twilio.com) account. Creating an account is easy and only takes a few minutes. There is a charge for each lookup but it is minimal ($0.0005 per lookup at the time of this writing). Once you've set up an account, go to the [Lookup Add-ons](https://www.twilio.com/console/lookup/add-ons) page, select the Whitepages Pro Phone Reputation addon, and install it (Note: it installs on your Twilio account, not your local PC).
+The Twilio filter is optional and requires a [Twilio](https://www.twilio.com) account. Creating an account is easy and only takes a few minutes. There is a charge for each lookup but it is minimal ($0.005 per lookup at the time of this writing). Once you've set up an account, go to the [Lookup Add-ons](https://www.twilio.com/console/lookup/add-ons) page, select the *Whitepages Pro Phone Reputation* add-on, and install it (Note: it installs on your Twilio account, not your local PC).
 
 ### Filter Configuration
 #### Local
