@@ -81,7 +81,7 @@ func Open(conn string) (*Modem, error) {
 	portCfg := &serial.Config{
 		Name:        cfg.port,
 		Baud:        cfg.baud,
-		ReadTimeout: 50 * time.Millisecond,
+		ReadTimeout: time.Second,
 	}
 
 	port, err := serial.OpenPort(portCfg)
@@ -382,6 +382,7 @@ func (m *Modem) run() {
 			m.stopped.Done()
 			return
 		case req := <-m.tx:
+			fmt.Printf("sending cmd: %s\n", string(req.Cmd))
 			// Send command to modem.
 			if err := write(m.port, string(req.Cmd)); err != nil {
 				req.Response <- &Response{Err: err}
@@ -495,11 +496,11 @@ func (m *Modem) readResponse() *Response {
 
 		switch b[0] {
 		case 13: // CR
+		case 10: // LF
 			if s := string(buf); s != "" {
 				return &Response{Data: string(buf)}
 			}
 			buf = buf[:0]
-		case 10: // LF
 		default:
 			buf = append(buf, b[0])
 		}
@@ -539,14 +540,11 @@ func writeRead(p *serial.Port, s string) (string, error) {
 }
 
 func write(p *serial.Port, s string) error {
-	cmd := []byte(fmt.Sprintf("%s\r\n", s))
-	n, err := p.Write(cmd)
-	if err != nil {
+	cmd := []byte(fmt.Sprintf("%s\r", s))
+	if n, err := p.Write(cmd); err != nil {
 		return err
-	}
-
-	if n != len(s)+2 {
-		return fmt.Errorf("only wrote %d of %d bytes", n, len(s)+2)
+	} else if n != len(cmd) {
+		return fmt.Errorf("only wrote %d of %d bytes", n, len(cmd))
 	}
 	return nil
 }
