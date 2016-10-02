@@ -32,6 +32,15 @@ The same format is used for `allow` and `block` filter files. Create a file for 
 norobod -allow path/to/allow.csv -block path/to/block.csv <other options>
 ```
 
+#### Exec Commands
+Allows users to execute external commands as a filter. Users can create an executable add-on that sends either `Block` or `Allow` to std.out to block or allow a call.
+
+To use this feature define the command to run with `-exec-command` and the command args with `-exec-args`. Exec-args uses the Go text/template format. A.k.a. `"-n {{.Number}}"`
+
+```
+./norobod -exec-command testFilter -exec-args "-n {{.Number}} -name {{.Name}} -t {{.Time}}"
+```
+
 #### Twilio
 There are no configuration files for the `Twilio` filter. To enable it, run `norobod` with the `-twlo-sid` and `-twlo-token` command line arguments. E.g.,
 ```
