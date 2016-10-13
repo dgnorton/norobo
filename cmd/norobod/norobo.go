@@ -32,7 +32,7 @@ func main() {
 	flag.StringVar(&callLogFile, "call-log", "", "path to call log file")
 	flag.StringVar(&twloAccountSID, "twlo-sid", "", "Twilio account SID")
 	flag.StringVar(&twloToken, "twlo-token", "", "Twilio token")
-	flag.StringVar(&execCommand, "exec-command", "", "Command gets executed for every call")
+	flag.StringVar(&execCommand, "exec", "", "Command gets executed for every call")
 	flag.StringVar(&execArgs, "exec-args", "-n {{.Number}}", "Arguments for exec command; uses text/template; availible vars are (Number, Name, Time)")
 	flag.Parse()
 
@@ -161,7 +161,7 @@ func newCallHandler(m *hayes.Modem, blockFile, allowFile, twloAccountSID, twloTo
 
 	// Adds external cammand exec to filter list if command exists in flags
 	if execCommand != "" {
-		filters = append(filters, filter.NewExtFilter(execCommand, execArgs))
+		filters = append(filters, filter.NewExecFilter(execCommand, execArgs))
 	}
 
 	callLog, err := norobo.LoadCallLog(callLogFile)
