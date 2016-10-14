@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -222,7 +223,8 @@ func (h *callHandler) log(c *norobo.Call) {
 	}
 	defer f.Close()
 	r := c.FilterResult
-	msg := fmt.Sprintf(`"%s","%s","%s","%s","%s","%s"%s`, c.Time.Format(time.RFC3339Nano), c.Name, c.Number, r.Action, r.FilterDescription(), r.Description, "\n")
+	w := csv.NewWriter(f)
+	msg := []string{c.Time.Format(time.RFC3339Nano), c.Name, c.Number, r.Action.String(), r.FilterDescription(), r.Description}
 
 	h.mu.Lock()
 	call := &norobo.CallEntry{
@@ -239,10 +241,11 @@ func (h *callHandler) log(c *norobo.Call) {
 	h.callLogChanged = make(chan struct{})
 	h.mu.Unlock()
 
-	if _, err := f.WriteString(msg); err != nil {
+	if err := w.Write(msg); err != nil {
 		println(err)
 	}
-	fmt.Printf(msg)
+	w.Flush()
+	fmt.Println(call)
 }
 
 func check(err error) {
