@@ -59,6 +59,15 @@ Then add yourself to the `dialout` group:
 ```
 $ usermod -a -G dialout dgnorton
 ```
+### Running as a daemon
+There is an example init script in `etc/norobo` that may work for you if you're running Linux.
+- Copy `etc/norobo` from the source to `/etc/init.d/`
+- Open the init script in a text editor and make sure the `cmd=` line is starting `norobod` with the command line options you want
+- `sudo chmod +x /etc/init.d/norobo`
+- `sudo update-rc.d norobo defaults`
+- `sudo service norobo start`
+- To make sure it's running, `tail /var/log/norobo.log`
+
 ### Call log
 Use the `-call-log path/to/call_log.csv` command line option to specify a call log file.  The file is a comma separated value format.  The fields are (in order): `time`, `caller name`, `caller number`, `action taken`, `filter name`, `rule description`.  The call log can also be viewed by web browser on port `7080`.
 
