@@ -23,6 +23,8 @@ func main() {
 		callLogFile    string
 		twloAccountSID string
 		twloToken      string
+		execCommand    string
+		execArgs       string
 	)
 
 	flag.StringVar(&connstr, "c", "/dev/ttyACM0,19200,n,8,1", "serial port connect string (port,baud,handshake,data-bits,stop-bits)")
@@ -31,12 +33,14 @@ func main() {
 	flag.StringVar(&callLogFile, "call-log", "", "path to call log file")
 	flag.StringVar(&twloAccountSID, "twlo-sid", "", "Twilio account SID")
 	flag.StringVar(&twloToken, "twlo-token", "", "Twilio token")
+	flag.StringVar(&execCommand, "exec", "", "Command gets executed for every call")
+	flag.StringVar(&execArgs, "exec-args", "-n {{.Number}}", "Arguments for exec command; uses text/template; availible vars are (Number, Name, Time)")
 	flag.Parse()
 
 	modem, err := hayes.Open(connstr)
 	check(err)
 
-	callHandler := newCallHandler(modem, blockFile, allowFile, twloAccountSID, twloToken, callLogFile)
+	callHandler := newCallHandler(modem, blockFile, allowFile, twloAccountSID, twloToken, callLogFile, execCommand, execArgs)
 	modem.SetCallHandler(callHandler)
 	modem.EnableSoftwareCache(false)
 
@@ -135,7 +139,7 @@ type callHandler struct {
 	callLogChanged chan struct{}
 }
 
-func newCallHandler(m *hayes.Modem, blockFile, allowFile, twloAccountSID, twloToken, callLogFile string) *callHandler {
+func newCallHandler(m *hayes.Modem, blockFile, allowFile, twloAccountSID, twloToken, callLogFile, execCommand, execArgs string) *callHandler {
 	filters := norobo.Filters{}
 
 	if blockFile != "" {
@@ -155,6 +159,11 @@ func newCallHandler(m *hayes.Modem, blockFile, allowFile, twloAccountSID, twloTo
 	}
 
 	filters = append(filters, filter.NewTwilio(twloAccountSID, twloToken))
+
+	// Adds external cammand exec to filter list if command exists in flags
+	if execCommand != "" {
+		filters = append(filters, filter.NewExecFilter(execCommand, execArgs))
+	}
 
 	callLog, err := norobo.LoadCallLog(callLogFile)
 	if err != nil {
