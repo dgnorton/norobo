@@ -158,7 +158,9 @@ func newCallHandler(m *hayes.Modem, blockFile, allowFile, twloAccountSID, twloTo
 		filters = append(filters, allow)
 	}
 
-	filters = append(filters, filter.NewTwilio(twloAccountSID, twloToken))
+	if twloAccountSID != "" && twloToken != "" {
+		filters = append(filters, filter.NewTwilio(twloAccountSID, twloToken))
+	}
 
 	// Adds external cammand exec to filter list if command exists in flags
 	if execCommand != "" {
