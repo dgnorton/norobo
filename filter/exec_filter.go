@@ -41,8 +41,6 @@ func (e *ExecFilter) Check(c *norobo.Call, result chan *norobo.FilterResult, can
 			panic(err)
 		}
 
-		fmt.Println(cmdArgs.String())
-
 		// Create command
 		cmd := exec.Command(e.cmd, strings.Split(cmdArgs.String(), " ")...)
 		stdout, err := cmd.StdoutPipe()
@@ -50,7 +48,9 @@ func (e *ExecFilter) Check(c *norobo.Call, result chan *norobo.FilterResult, can
 			result <- &norobo.FilterResult{Err: err, Action: norobo.Allow}
 			return
 		}
+		fmt.Printf("running exec filter: %s %s\n", e.cmd, cmdArgs.String())
 		if err := cmd.Start(); err != nil {
+			println(err.Error())
 			result <- &norobo.FilterResult{Err: err, Action: norobo.Allow}
 			return
 		}
@@ -71,19 +71,25 @@ func (e *ExecFilter) Check(c *norobo.Call, result chan *norobo.FilterResult, can
 				result <- &norobo.FilterResult{Err: err, Action: norobo.Allow}
 				return
 			}
+			fmt.Printf("exec filter returned: %s\n", string(out[:]))
 			if string(out[:]) == "block" {
-				result <- &norobo.FilterResult{Match: true, Action: e.Action(), Filter: e, Description: "Command returned: block"}
+				result <- &norobo.FilterResult{Match: true, Action: e.Action(), Filter: e, Description: "command returned: block"}
 				return
 			}
 		case <-cancel:
+			println("exec filter canceled")
 			return
 		case <-time.After(10 * time.Second):
-			result <- &norobo.FilterResult{Err: errors.New("Exec command timed out"), Action: norobo.Allow, Filter: e, Description: "Exec command timed out"}
+			println("exec filter timed out")
+			result <- &norobo.FilterResult{Err: errors.New("exec command timed out"), Action: norobo.Allow, Filter: e, Description: "exec command timed out"}
 			return
 		}
+		fmt.Printf("exec filter returned: %s\n", string(out[:]))
 		result <- &norobo.FilterResult{Match: false, Action: norobo.Allow, Filter: e, Description: ""}
 	}()
 }
 
 func (e *ExecFilter) Action() norobo.Action { return norobo.Block }
-func (e *ExecFilter) Description() string   { return "Exec command for call return 7 to block" }
+func (e *ExecFilter) Description() string {
+	return fmt.Sprintf("%s %s", e.cmd, e.args)
+}
