@@ -1,3 +1,5 @@
+//go:generate statik -src=web
+//go:generate go fmt statik/statik.go
 package main
 
 import (
@@ -13,6 +15,9 @@ import (
 	"github.com/dgnorton/norobo"
 	"github.com/dgnorton/norobo/filter"
 	"github.com/dgnorton/norobo/hayes"
+	"github.com/rakyll/statik/fs"
+
+	_ "github.com/dgnorton/norobo/cmd/norobod/statik"
 )
 
 func main() {
@@ -109,7 +114,11 @@ func newWebHandler(h *callHandler) *webHandler {
 		callHandler: h,
 	}
 
-	handler.mux.Handle("/", http.FileServer(http.Dir("./web")))
+	statikFS, err := fs.New()
+	if err != nil {
+		panic(err)
+	}
+	handler.mux.Handle("/", http.FileServer(statikFS))
 	handler.mux.HandleFunc("/calls", handler.serveCalls)
 
 	return handler
