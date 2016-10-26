@@ -14,11 +14,13 @@ It has been tested on *Linux* using a *Zoom 3095 USB Mini External Modem*.  It c
 Currently, it must be built from source.  You'll need the [Go tools](https://golang.org/doc/install), if you don't already have them installed.  Then clone this repo and build the code in `cmd/norobod`.
 
 ### How call filters work
-`norobod` currently supports two filters: local and Twilio. 
+`norobod` currently supports three filters: local, exec, Twilio. 
 #### Local
 Local filters run locally and do not send incoming call info out to external services to perform filtering. There are two types of local filters: `allow` and `block`. Both are optional. `Allow` filters are special in that they run first and not concurrently with any other filters. If a call matches an allow filter, it is allowed through immediately with no further filtering. `Block` filters run concurrently with the Twilio filter, if configured. If a call matches a `block` filter, `norobod` will answer the call, immediately hangup, and cancel any other concurrent filters that are running.
 #### Twilio
 The Twilio filter is optional and requires a [Twilio](https://www.twilio.com) account. Creating an account is easy and only takes a few minutes. There is a charge for each lookup but it is minimal ($0.005 per lookup at the time of this writing). Once you've set up an account, go to the [Lookup Add-ons](https://www.twilio.com/console/lookup/add-ons) page, select the *Whitepages Pro Phone Reputation* add-on, and install it (Note: it installs on your Twilio account, not your local PC).
+#### Exec
+The exec filter allows users to create their own filters(addon) to run when a call comes in. Configuration notes are down below.
 
 ### Filter Configuration
 #### Local
@@ -30,6 +32,15 @@ See `filter/block.csv` for examples.
 The same format is used for `allow` and `block` filter files. Create a file for one or both as desired. Use the `-allow` and `-block` command line options to enable them. E.g., 
 ```
 norobod -allow path/to/allow.csv -block path/to/block.csv <other options>
+```
+
+#### Exec Commands
+Allows users to execute external commands as a filter. Users can create an executable add-on that sends either `block` or `allow` to std.out to block or allow a call.
+
+To use this feature define the command to run with `-exec` and the command args with `-exec-args`. Exec-args uses the Go text/template format. E.g. `"-n {{.Number}}"`
+
+```
+./norobod -exec testFilter -exec-args "-n {{.Number}} -name {{.Name}} -t {{.Time}}"
 ```
 
 #### Twilio
