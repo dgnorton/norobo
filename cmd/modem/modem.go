@@ -73,7 +73,7 @@ func main() {
 		}
 	}()
 
-	fmt.Printf("http server on :8087\n")
+	fmt.Printf("\nCalls can be simulated using curl. E.g.,\ncurl -X POST \"localhost:8087/call?name=JohnDoe&number=1234567890\"\n\n")
 	http.HandleFunc("/call", serveCall)
 	http.ListenAndServe(":8087", nil)
 }
