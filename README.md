@@ -89,7 +89,10 @@ while inotifywait -e close_write call_log.csv; do notify-send "Call From..." "`t
 ```
 
 ### Dev notes
-I use `socat` to create a pair of connected virtual serial ports for development and debug.  There's a hacky little modem simulator in `cmd/modem`.  `norobod` will talk to it and think it's talking to a modem.  The modem simulator has a simple HTTP API for simulating inbound calls.
+On Linux / Unix, use `socat` to create a pair of connected virtual serial ports for development and debug.  There's a hacky little modem simulator in `cmd/modem`.  `norobod` will talk to it and think it's talking to a modem.  The modem simulator has a simple HTTP API for simulating inbound calls. The `norobo/etc/norobosim.sh` bash script can be used to automate the process of starting up `socat`, `modem`, and `norobod`. It starts `socat` in the background and uses `tmux` (terminal mux) to display `modem` & `norobod` output in separate panes. It also creates a third pane for the dev to run `curl` commands to post simulated inbound calls to `modem`. You may need to tweak the `norobosim.sh` script to suit your environment / needs.
+
+Manually running `socat`, `modem`, and `norobod`...
+
 Create a pair of connected virtual serial ports:
 ```
 $ socat -d -d pty,raw,echo=0 pty,raw,echo=0
