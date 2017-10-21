@@ -83,7 +83,7 @@ func (r *Response) Error() error {
 }
 
 func (r *Response) SpamConfidence() float64 {
-	return float64(r.Result.ReputationDetails.Score) / 100.0
+	return float64(r.Result.ReputationDetails.Score)
 }
 
 func (r *Response) SpamDescription() string {
