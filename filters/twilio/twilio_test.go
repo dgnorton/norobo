@@ -6,114 +6,60 @@ import (
 	"testing"
 )
 
-func TestTwilio_WppRepNumber(t *testing.T) {
-	str := `{
-    "add_ons": {
-        "code": null,
-        "message": null,
-        "results": {
-            "whitepages_pro_phone_rep": {
-                "code": null,
-                "message": null,
-                "request_sid": "XR8459df6a1f91ca92f738f11fac829f97",
-                "result": {
-                    "messages": [],
-                    "results": [
-                        {
-                            "phone_number": "7278103953",
-                            "reputation": {
-                                "details": [
-                                    {
-                                        "category": "NotApplicable",
-                                        "score": 2,
-                                        "type": "NotApplicable"
-                                    }
-                                ],
-                                "level": 1,
-                                "report_count": 10,
-                                "volume_score": 1
-                            }
-                        }
-                    ]
-                },
-                "status": "successful"
-            }
-        },
-        "status": "successful"
-    },
-    "caller_name": null,
-    "carrier": null,
-    "country_code": "US",
-    "national_format": "(727) 810-3953",
-    "phone_number": "+17278103953",
-    "url": "https://lookups.twilio.com/v1/PhoneNumbers/+17278103953"
-}`
+func TestTwilio(t *testing.T) {
+	t.Parallel()
 
 	twloResp := &Response{}
-	buf := bytes.NewBuffer([]byte(str))
+	buf := bytes.NewBuffer(response())
 	if err := json.NewDecoder(buf).Decode(twloResp); err != nil {
 		t.Fatal(err)
 	}
 
-	if number, err := twloResp.AddOns.WppRepNumber(); err != nil {
-		t.Fatal(err)
-	} else if number != "7278103953" {
-		t.Fatalf("unexpected number: %s", number)
+	results := twloResp.AddOnsResults()
+
+	if len(results) != 1 {
+		t.Fatalf("exp: 1, got: %d", len(results))
+	}
+
+	if results[0].SpamConfidence() != 1.0 {
+		t.Fatalf("exp: 1.0, got %f", results[0].SpamConfidence())
 	}
 }
 
-func TestTwilio_WppRepCategory(t *testing.T) {
-	str := `{
-    "add_ons": {
-        "code": null,
-        "message": null,
-        "results": {
-            "whitepages_pro_phone_rep": {
-                "code": null,
-                "message": null,
-                "request_sid": "XR8459df6a1f91ca92f738f11fac829f97",
-                "result": {
-                    "messages": [],
-                    "results": [
-                        {
-                            "phone_number": "7278103953",
-                            "reputation": {
-                                "details": [
-                                    {
-                                        "category": "NotApplicable",
-                                        "score": 2,
-                                        "type": "NotApplicable"
-                                    }
-                                ],
-                                "level": 1,
-                                "report_count": 10,
-                                "volume_score": 1
-                            }
-                        }
-                    ]
-                },
-                "status": "successful"
-            }
-        },
-        "status": "successful"
-    },
-    "caller_name": null,
-    "carrier": null,
-    "country_code": "US",
-    "national_format": "(727) 810-3953",
-    "phone_number": "+17278103953",
-    "url": "https://lookups.twilio.com/v1/PhoneNumbers/+17278103953"
-}`
-
-	twloResp := &Response{}
-	buf := bytes.NewBuffer([]byte(str))
-	if err := json.NewDecoder(buf).Decode(twloResp); err != nil {
-		t.Fatal(err)
-	}
-
-	if number, err := twloResp.AddOns.WppRepCategory(); err != nil {
-		t.Fatal(err)
-	} else if number != "NotApplicable" {
-		t.Fatalf("unexpected number: %s", number)
-	}
+func response() []byte {
+	return []byte(`{
+		"caller_name": null,
+		"country_code": "US",
+		"phone_number": "+12022831710",
+		"national_format": "(202) 283-1710",
+		"carrier": null,
+		"add_ons": {
+			"status": "successful",
+			"message": null,
+			"code": null,
+			"results": {
+				"whitepages_pro_phone_rep": {
+					"request_sid": "XR1234567890THISISABOGUSSIDAAAAAAA",
+					"status": "successful",
+					"message": null,
+					"code": null,
+					"result": {
+						"id": "Phone.abcdefef-a1bc-a45b-fed6-abcd1234ef56.Durable",
+						"phone_number": "2022831710",
+						"reputation_level": 1,
+						"reputation_details": {
+							"score": 1,
+							"type": "UncertainType",
+							"category": null
+						},
+						"volume_score": 1,
+						"report_count": 4,
+						"error": null,
+						"warnings": [ ]
+					}
+				}
+			}
+		},
+		"url": "https://lookups.twilio.com/v1/PhoneNumbers/+12022831710"
+	}`)
 }
