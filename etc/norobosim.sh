@@ -60,8 +60,8 @@ mkdir $tmpdir
 cp $GOPATH/bin/modem $tmpdir
 cp $GOPATH/bin/norobod $tmpdir
 #cp -r /home/dgnorton/go/src/github.com/dgnorton/norobo/cmd/norobod/web $tmpdir
-cp $GOPATH/src/github.com/dgnorton/norobo/filter/block.csv $tmpdir
-cp $GOPATH/src/github.com/dgnorton/norobo/filter/exec_example.sh $tmpdir
+cp $GOPATH/src/github.com/dgnorton/norobo/filters/local/block.csv $tmpdir
+cp $GOPATH/src/github.com/dgnorton/norobo/filters/exec/exec_example.sh $tmpdir
 
 # Change to the tmp working dir.
 cd $tmpdir
