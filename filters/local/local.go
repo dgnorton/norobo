@@ -1,4 +1,4 @@
-package filter
+package local
 
 import (
 	"bytes"

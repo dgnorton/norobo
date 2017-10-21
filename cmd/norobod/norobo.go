@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/dgnorton/norobo"
-	"github.com/dgnorton/norobo/filter"
+	"github.com/dgnorton/norobo/filters/exec"
+	"github.com/dgnorton/norobo/filters/local"
+	"github.com/dgnorton/norobo/filters/twilio"
 	"github.com/dgnorton/norobo/hayes"
 	"github.com/rakyll/statik/fs"
 
@@ -152,7 +154,7 @@ func newCallHandler(m *hayes.Modem, blockFile, allowFile, twloAccountSID, twloTo
 	filters := norobo.Filters{}
 
 	if blockFile != "" {
-		block, err := filter.LoadFilterFile(blockFile, norobo.Block)
+		block, err := local.LoadFilterFile(blockFile, norobo.Block)
 		if err != nil {
 			panic(err)
 		}
@@ -160,7 +162,7 @@ func newCallHandler(m *hayes.Modem, blockFile, allowFile, twloAccountSID, twloTo
 	}
 
 	if allowFile != "" {
-		allow, err := filter.LoadFilterFile(allowFile, norobo.Allow)
+		allow, err := local.LoadFilterFile(allowFile, norobo.Allow)
 		if err != nil {
 			panic(err)
 		}
@@ -173,7 +175,7 @@ func newCallHandler(m *hayes.Modem, blockFile, allowFile, twloAccountSID, twloTo
 
 	// Adds external cammand exec to filter list if command exists in flags
 	if execCommand != "" {
-		filters = append(filters, filter.NewExecFilter(execCommand, execArgs))
+		filters = append(filters, exec.NewFilter(execCommand, execArgs))
 	}
 
 	callLog, err := norobo.LoadCallLog(callLogFile)

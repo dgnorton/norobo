@@ -1,4 +1,4 @@
-package filter
+package exec
 
 import (
 	"bytes"
@@ -13,19 +13,19 @@ import (
 	"github.com/dgnorton/norobo"
 )
 
-type ExecFilter struct {
+type Filter struct {
 	cmd  string
 	args string
 }
 
-func NewExecFilter(cmd, args string) *ExecFilter {
-	return &ExecFilter{
+func NewFilter(cmd, args string) *Filter {
+	return &Filter{
 		cmd:  cmd,
 		args: args,
 	}
 }
 
-func (e *ExecFilter) Check(c *norobo.Call, result chan *norobo.FilterResult, cancel chan struct{}, done *sync.WaitGroup) {
+func (e *Filter) Check(c *norobo.Call, result chan *norobo.FilterResult, cancel chan struct{}, done *sync.WaitGroup) {
 	go func() {
 		defer done.Done()
 
@@ -74,8 +74,10 @@ func (e *ExecFilter) Check(c *norobo.Call, result chan *norobo.FilterResult, can
 			fmt.Printf("exec filter returned: %s\n", string(out[:]))
 			if string(out[:]) == "block" {
 				result <- &norobo.FilterResult{Match: true, Action: e.Action(), Filter: e, Description: "command returned: block"}
-				return
+			} else {
+				result <- &norobo.FilterResult{Match: false, Action: norobo.Allow, Filter: e, Description: ""}
 			}
+			return
 		case <-cancel:
 			println("exec filter canceled")
 			return
@@ -84,12 +86,10 @@ func (e *ExecFilter) Check(c *norobo.Call, result chan *norobo.FilterResult, can
 			result <- &norobo.FilterResult{Err: errors.New("exec command timed out"), Action: norobo.Allow, Filter: e, Description: "exec command timed out"}
 			return
 		}
-		fmt.Printf("exec filter returned: %s\n", string(out[:]))
-		result <- &norobo.FilterResult{Match: false, Action: norobo.Allow, Filter: e, Description: ""}
 	}()
 }
 
-func (e *ExecFilter) Action() norobo.Action { return norobo.Block }
-func (e *ExecFilter) Description() string {
+func (e *Filter) Action() norobo.Action { return norobo.Block }
+func (e *Filter) Description() string {
 	return fmt.Sprintf("%s %s", e.cmd, e.args)
 }
