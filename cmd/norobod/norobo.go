@@ -32,6 +32,7 @@ func main() {
 		twloToken      string
 		execCommand    string
 		execArgs       string
+		httpAddr       string
 	)
 
 	flag.StringVar(&connstr, "c", "/dev/ttyACM0,19200,n,8,1", "serial port connect string (port,baud,handshake,data-bits,stop-bits)")
@@ -42,6 +43,7 @@ func main() {
 	flag.StringVar(&twloToken, "twlo-token", "", "Twilio token")
 	flag.StringVar(&execCommand, "exec", "", "Command gets executed for every call")
 	flag.StringVar(&execArgs, "exec-args", "-n {{.Number}}", "Arguments for exec command; uses text/template; availible vars are (Number, Name, Time)")
+	flag.StringVar(&httpAddr, "bind", "localhost:7080", "HTTP IP and port")
 	flag.Parse()
 
 	modem, err := hayes.Open(connstr)
@@ -96,7 +98,7 @@ func main() {
 
 	// Start call log web server.
 	s := &http.Server{
-		Addr:    ":7080",
+		Addr:    httpAddr,
 		Handler: newWebHandler(callHandler),
 	}
 
