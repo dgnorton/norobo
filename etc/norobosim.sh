@@ -5,8 +5,6 @@ set -e
 socatPID=0
 tmpdir="/tmp/norobo"
 session="norobo"
-twilioSID=
-twilioTok=
 
 # Parse command line arguments.
 while :; do
@@ -18,22 +16,6 @@ while :; do
 				kill -s TERM $socatPID
 			fi
 			exit 0
-			;;
-		--twilio)
-			# Parse Twilio SID and token.
-			if [ "$2" ]; then
-				twilioSID=$(echo $2 | cut -d: -f1)
-				twilioTok=$(echo $2 | cut -d: -f2)
-
-				if [ -z "$twilioSID" -o -z "$twilioTok" ]; then
-					echo "--twilio requires SID:Token"
-					exit 1
-				fi
-			else
-				echo "--twilio requires SID:Token"
-				exit 1
-			fi
-			shift
 			;;
 		*)
 			break
@@ -85,11 +67,7 @@ tmux send-keys -t $session:0.0 "$tmpdir/modem -c \"$modemTTY,19200,n,8,1\"" C-m
 sleep 1
 
 # Start norobod so that it uses the modem simulator.
-if [ ! -z "$twilioSID" ]; then
-	twilioOpts="-twlo-sid $twilioSID -twlo-token $twilioTok"
-fi
-
-tmux send-keys -t $session:0.2 "$tmpdir/norobod -c \"$norobodTTY,19200,n,8,1\" -block $tmpdir/block.csv -call-log $tmpdir/call.log -exec $tmpdir/exec_example.sh $twilioOpts" C-m
+tmux send-keys -t $session:0.2 "$tmpdir/norobod -c \"$norobodTTY,19200,n,8,1\" -block $tmpdir/block.csv -call-log $tmpdir/call.log -exec $tmpdir/exec_example.sh $@" C-m
 
 # Set the active tmux pane to the one for user interaction.
 tmux select-pane -t $session:0.1
